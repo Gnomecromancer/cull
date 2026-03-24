@@ -2,6 +2,8 @@
 
 I ran WinDirStat one afternoon because my SSD was at 94% and found 74 GB of `node_modules` from projects I hadn't touched in over a year. Deleting them by hand is tedious. This does it for you.
 
+![devcull TUI demo](demo.gif)
+
 ```
 $ cull ~/projects
 found 23 stale cache dirs totaling 61.3 GB
@@ -20,7 +22,7 @@ freed 61.3 GB
 ## install
 
 ```
-pip install cull
+pip install devcull
 ```
 
 ## usage
@@ -28,10 +30,26 @@ pip install cull
 ```
 cull [PATH]                  scan PATH (default: current dir)
   --older-than DAYS          only show caches untouched for N days (default: 90)
+  --min-size MB              skip caches smaller than N megabytes
   --delete                   interactively pick what to remove
   --all                      delete everything found without asking
   --dry-run                  show what would go, don't touch anything
+  --report FILE              write findings to a JSON file
 ```
+
+## .cullignore
+
+Drop a `.cullignore` file in your projects root to protect specific directories:
+
+```
+# keep this one — it's a monorepo with shared deps
+my-shared-lib/node_modules
+
+# ignore all .venv dirs
+.venv
+```
+
+Patterns match against the directory name or its path relative to the scan root.
 
 ## what it looks for
 
