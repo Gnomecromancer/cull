@@ -1,3 +1,4 @@
+import fnmatch
 import os
 import subprocess
 from dataclasses import dataclass, field
@@ -98,12 +99,37 @@ def _last_used(hit_path: Path, project: Path | None) -> datetime:
         return datetime.min.replace(tzinfo=timezone.utc)
 
 
+def _load_ignore(root: Path) -> list[str]:
+    ig = root / ".cullignore"
+    if not ig.exists():
+        return []
+    pats = []
+    for line in ig.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            pats.append(line)
+    return pats
+
+
+def _is_ignored(hit: Path, root: Path, patterns: list[str]) -> bool:
+    if not patterns:
+        return False
+    rel = hit.relative_to(root).as_posix()
+    name = hit.name
+    for pat in patterns:
+        if fnmatch.fnmatch(name, pat) or fnmatch.fnmatch(rel, pat):
+            return True
+    return False
+
+
 def scan(root: Path, progress_cb=None) -> list[Hit]:
     """
     Walk root looking for cache directories. Doesn't recurse into found dirs.
     progress_cb(path) is called as we enter each directory, for spinner updates.
+    Respects .cullignore at root (gitignore-style patterns, matched against name or relative path).
     """
     hits = []
+    ignore_pats = _load_ignore(root)
     # TODO: handle junction points (windows symlink variant)
 
     for dirpath, dirnames, _ in os.walk(root, topdown=True, onerror=None, followlinks=False):
@@ -121,18 +147,20 @@ def scan(root: Path, progress_cb=None) -> list[Hit]:
 
             if d in CACHE_DIRS:
                 full = p / d
-                proj = _project_root(full)
-                h = Hit(path=full, project=proj)
-                hits.append(h)
                 prune.append(d)
+                if _is_ignored(full, root, ignore_pats):
+                    continue
+                proj = _project_root(full)
+                hits.append(Hit(path=full, project=proj))
                 continue
 
             if d in CONDITIONAL:
                 # only include 'target' if a build marker is in the immediate parent
                 if (p / "Cargo.toml").exists() or (p / "pom.xml").exists():
                     full = p / d
-                    hits.append(Hit(path=full, project=p))
                     prune.append(d)
+                    if not _is_ignored(full, root, ignore_pats):
+                        hits.append(Hit(path=full, project=p))
 
         for d in prune:
             dirnames.remove(d)
