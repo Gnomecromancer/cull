@@ -1,3 +1,4 @@
+import json
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -67,11 +68,15 @@ def _show_table(hits: list[Hit]):
 @click.argument("path", default=".", type=click.Path(exists=True, file_okay=False))
 @click.option("--older-than", default=90, metavar="DAYS",
               help="only show caches not touched in N days (default: 90)")
+@click.option("--min-size", default=0, metavar="MB",
+              help="only show caches larger than N megabytes")
 @click.option("--delete", is_flag=True, help="interactively delete found caches")
 @click.option("--all", "delete_all", is_flag=True, help="delete everything without asking (use with care)")
 @click.option("--dry-run", is_flag=True, help="show what would be deleted but don't touch anything")
+@click.option("--report", "report_file", default=None, metavar="FILE",
+              help="write findings to a JSON file")
 @click.version_option(__version__, prog_name="cull")
-def cli(path, older_than, delete, delete_all, dry_run):
+def cli(path, older_than, min_size, delete, delete_all, dry_run, report_file):
     """Find and remove stale dev cache directories.
 
     Scans PATH (default: current directory) for node_modules, .venv,
@@ -95,17 +100,38 @@ def cli(path, older_than, delete, delete_all, dry_run):
         rprint("[green]nothing found, you're clean[/green]")
         return
 
-    # filter by age
-    now = datetime.now(tz=timezone.utc)
-    filtered = [h for h in hits if _age_days(h.last_used) >= older_than]
+    # filter by age and size
+    min_bytes = min_size * 1024 * 1024
+    filtered = [h for h in hits if _age_days(h.last_used) >= older_than and h.size >= min_bytes]
 
     if not filtered:
-        rprint(f"[green]found {len(hits)} cache dirs but all were touched in the last {older_than} days[/green]")
+        qualifier = f"touched in the last {older_than} days"
+        if min_size:
+            qualifier += f" or smaller than {min_size} MB"
+        rprint(f"[green]found {len(hits)} cache dirs but none match your filters ({qualifier})[/green]")
         return
 
     total = sum(h.size for h in filtered)
     rprint(f"\nfound [bold]{len(filtered)}[/bold] stale cache dirs totaling [yellow bold]{_fmt_size(total)}[/yellow bold]\n")
     _show_table(filtered)
+
+    if report_file:
+        data = {
+            "scanned": str(root),
+            "at": datetime.now(tz=timezone.utc).isoformat(),
+            "filters": {"older_than_days": older_than, "min_size_mb": min_size},
+            "hits": [
+                {
+                    "path": str(h.path),
+                    "size_bytes": h.size,
+                    "last_used": h.last_used.isoformat(),
+                    "project": str(h.project) if h.project else None,
+                }
+                for h in filtered
+            ],
+        }
+        Path(report_file).write_text(json.dumps(data, indent=2), encoding="utf-8")
+        rprint(f"[dim]report saved → {report_file}[/dim]")
 
     if dry_run:
         rprint("\n[dim](dry run — nothing deleted)[/dim]")

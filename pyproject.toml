@@ -3,12 +3,12 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cull"
-version = "0.1.0"
+name = "devcull"
+version = "0.2.0"
 description = "remove stale dev cache directories"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 keywords = ["developer-tools", "cache", "cleanup", "node_modules"]
 classifiers = [
     "Environment :: Console",

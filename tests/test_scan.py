@@ -65,6 +65,21 @@ def test_skips_recent_when_filtered(tmp_path):
     assert any(h.path.name == ".pytest_cache" for h in hits)
 
 
+def test_cullignore_skips_matching_dirs():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _make_tree(root, {
+            "app1": {"package.json": None, "node_modules": {"react": {"index.js": None}}},
+            "app2": {"package.json": None, "node_modules": {"vue": {"index.js": None}}},
+        })
+        # ignore app1's node_modules
+        (root / ".cullignore").write_text("app1/node_modules\n")
+        hits = scan(root)
+        paths = [str(h.path.relative_to(root)).replace("\\", "/") for h in hits]
+        assert "app2/node_modules" in paths
+        assert "app1/node_modules" not in paths
+
+
 def test_conditional_target_with_cargo():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
