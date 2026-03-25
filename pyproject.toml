@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "devcull"
-version = "0.2.0"
+version = "0.3.0"
 description = "remove stale dev cache directories"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,8 +21,12 @@ dependencies = [
     "rich>=13.0",
 ]
 
+[project.optional-dependencies]
+tui = ["textual>=0.80.0"]
+
 [project.scripts]
 cull = "cull.cli:cli"
+cull-tui = "cull.tui:main"
 
 [project.urls]
 Repository = "https://github.com/gnomecromancer/cull"
